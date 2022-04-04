@@ -1,12 +1,19 @@
 unsigned char linebuf[128];
 unsigned char page[32];
 
+#define PIN_RESET 13
+#define PIN_MOSI 10
+#define PIN_MISO 11
+#define PIN_SCK 12
+
+#define SPI_DELAY 5
+
 void setup() {
-  pinMode(10, INPUT); // mosi
-  pinMode(11, INPUT); // miso
-  pinMode(12, INPUT); // sck
-  pinMode(9, OUTPUT); // rst
-  digitalWrite(9, LOW);
+  pinMode(PIN_MOSI, INPUT); // mosi
+  pinMode(PIN_MISO, INPUT); // miso
+  pinMode(PIN_SCK, INPUT); // sck
+  pinMode(PIN_RESET, OUTPUT); // rst
+  digitalWrite(PIN_RESET, LOW);
   Serial.begin(1200);
   delay(100);
 }
@@ -19,20 +26,20 @@ int hex(unsigned char c) {
 }
 
 int xchbyte(int v) {
-  delayMicroseconds(10);
+  delayMicroseconds(SPI_DELAY);
   int mask = 0x80;
   int res = 0;
   while (mask) {
-    digitalWrite(12, HIGH);
-    digitalWrite(10, (v & mask) ? HIGH : LOW);
-    delayMicroseconds(10);
-    digitalWrite(12, LOW);
+    digitalWrite(PIN_SCK, HIGH);
+    digitalWrite(PIN_MOSI, (v & mask) ? HIGH : LOW);
+    delayMicroseconds(SPI_DELAY);
+    digitalWrite(PIN_SCK, LOW);
     res <<= 1;
-    if (digitalRead(11) == HIGH) {
+    if (digitalRead(PIN_MISO) == HIGH) {
       res |= 1;
     }
     mask >>= 1;
-    delayMicroseconds(10);
+    delayMicroseconds(SPI_DELAY);
   }
   return res;
 }
@@ -137,7 +144,12 @@ void writePage(int pg) {
       ok += 1;
     }
   }
-  Serial.println(ok);
+  if (ok == sizeof(page)) {
+    Serial.println("--== OK ==--");
+  } else {
+    Serial.print(ok);
+    Serial.println(" *** FAIL ***");
+  }
 }
 
 int process(void) {
@@ -186,12 +198,12 @@ void loop() {
   if (Serial.peek() < 0) {
     return;
   }
-  pinMode(12, OUTPUT);
-  digitalWrite(12, LOW);
+  pinMode(PIN_SCK, OUTPUT);
+  digitalWrite(PIN_SCK, LOW);
   delay(1);
-  digitalWrite(9, HIGH);
+  digitalWrite(PIN_RESET, HIGH);
   delay(4);
-  pinMode(10, OUTPUT);
+  pinMode(PIN_MOSI, OUTPUT);
   Serial.println("PRG EN");
   prgEnable();
   int sig = readSignature();
@@ -202,13 +214,13 @@ void loop() {
   delay(10);
   process();
   delay(10);
-  digitalWrite(9, LOW);
-  pinMode(12, INPUT);
-  pinMode(10, INPUT);
+  digitalWrite(PIN_RESET, LOW);
+  pinMode(PIN_SCK, INPUT);
+  pinMode(PIN_MOSI, INPUT);
   delay(100);
-  digitalWrite(9, HIGH);
+  digitalWrite(PIN_RESET, HIGH);
   delay(100);
-  digitalWrite(9, LOW);
+  digitalWrite(PIN_RESET, LOW);
   Serial.println("DONE");
   while (Serial.peek() >= 0) {
     Serial.read();
